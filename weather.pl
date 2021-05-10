@@ -24,7 +24,6 @@ print "<img src='https://sanvash.com/cgi-bin/log.pl'>";
 &printFoot;
 
 
-
 sub getData {
 	my $apikey = &getKey("openweathermap");
 
@@ -34,7 +33,7 @@ sub getData {
 	}
 
 	# get current weather data
-	my $url = "http://api.openweathermap.org/data/2.5/weather?units=metric&lat=$lat&lon=$lon&appid=$apikey";
+	my $url = "https://api.openweathermap.org/data/2.5/weather?units=metric&lat=$lat&lon=$lon&appid=$apikey";
 	my $resp = &getPage( $url );
 	my $current = decode_json($resp);
 	&debug($url);
