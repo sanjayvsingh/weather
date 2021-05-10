@@ -8,52 +8,66 @@ use CGI::Carp qw(fatalsToBrowser);
 use CGI qw(:standard);
 use Data::Dumper;
 
-my $apikey = &getKey("openweathermap");
-my ($lat, $lon) = (43.7806, -79.3503);  # default location - home
-if ( defined param('lat') && defined param('lon') ) { 
-	($lat, $lon) = (param('lat'), param('lon'));
-}
-
-my $url = "https://api.openweathermap.org/data/2.5/onecall?units=metric&exclude=minutely&lat=$lat&lon=$lon&appid=$apikey";
-my $resp = &getPage( $url );
-my $weather = decode_json($resp);
-my $tzoffset = 0;
+my ($current, $forecast, $tzoffset) = &getData();
 
 &printHead;
-&debug($url);
-&debug("lat: $lat, lon $lon");
-
-if ( defined $$weather{"current"} ) {
-	$tzoffset = $$weather{"timezone_offset"};
-	&debug("current time: $$weather{'current'}{'dt'}, offset: $tzoffset)");
-	if ( defined $$weather{"alerts"} ) {
-		&printAlerts( $$weather{"alerts"} );
-	}
-	&printCurrent( $$weather{"current"} );
-	&printForecast( $$weather{"daily"} );
-	&printHourly( $$weather{"hourly"} );
-	print "<p>Local time: " . &getDateTime($$weather{"current"}{"dt"}, $tzoffset) . "\n";
-} else {
-	print "<p>No weather data.\n";
-	print "<!--" . Debug($resp) . "-->\n";
+if ( defined $$forecast{"alerts"} ) {
+	&printAlerts( $$forecast{"alerts"} );
 }
-print "<img src='http://sanvash.com/cgi-bin/log.pl'>";
+&printCurrent( $current );
+&printForecast( $$forecast{"daily"} );
+&printHourly( $$forecast{"hourly"} );
+my $owmLink = "https://openweathermap.org/city/" . $$current{"id"};
+print "<p><a href='$owmLink' target='_blank'>" . $$current{"name"} . ", " . $$current{"sys"}{"country"} . "</a> at " . &getDateTime($$forecast{"current"}{"dt"}, $tzoffset) . "\n";
+
+print "<img src='https://sanvash.com/cgi-bin/log.pl'>";
 &printFoot;
 
 
 
+sub getData {
+	my $apikey = &getKey("openweathermap");
 
+	my ($lat, $lon) = (43.7806, -79.3503);  # default location - home
+	if ( defined param('lat') && defined param('lon') ) { 
+		($lat, $lon) = (param('lat'), param('lon'));
+	}
+
+	# get current weather data
+	my $url = "http://api.openweathermap.org/data/2.5/weather?units=metric&lat=$lat&lon=$lon&appid=$apikey";
+	my $resp = &getPage( $url );
+	my $current = decode_json($resp);
+	&debug($url);
+
+	# get forecast data
+	$url = "https://api.openweathermap.org/data/2.5/onecall?units=metric&exclude=minutely&lat=$lat&lon=$lon&appid=$apikey";
+	$resp = &getPage( $url );
+	my $forecast = decode_json($resp);
+	&debug($url);
+
+	unless ( defined $current && defined $forecast ) {
+		print "<p>No weather data.\n";
+		print "<!--" . Debug($resp) . "-->\n";
+	}
+
+	my $tzoffset = $$forecast{"timezone_offset"};
+
+	return ($current, $forecast, $tzoffset);
+}
 
 sub printCurrent {
 	my ($w) = @_;
-	print "<h1>Current Conditions</h1>\n";
+	my $city = "Current Conditions";
+	if ( defined $$w{'name'} && $$w{'name'} ne "" ) { $city = $$w{'name'}; }	
+	
+	print "<h1>$city</h1>\n";
 	print "<table>\n";
 	print "<tr>\n";
 	print "<td>" . &getIcon( $$w{"weather"}[0]{"icon"}, $$w{"weather"}[0]{"description"} ) . "</td>\n";
-	print "<td class='current'>" . &round($$w{"temp"}) . "&deg;C</td>\n";
-	print "<td class='feelslike'>feels like<br>" . &round($$w{"feels_like"}) . "&deg;</td>\n";
-	print "<td class='feelslike'>humidity<br>" . &round($$w{"humidity"}) . "%</td>\n";
-	print "<td class='feelslike'>wind<br>" . &round($$w{"wind_speed"}*3.6) . "km/h</td>\n";
+	print "<td class='current'>" . &round($$w{"main"}{"temp"}) . "&deg;C</td>\n";
+	print "<td class='feelslike'>feels like<br>" . &round($$w{"main"}{"feels_like"}) . "&deg;</td>\n";
+	print "<td class='feelslike'>humidity<br>" . &round($$w{"main"}{"humidity"}) . "%</td>\n";
+	print "<td class='feelslike'>wind<br>" . &round($$w{"wind"}{"speed"}*3.6) . "km/h</td>\n";
 	print "</tr>\n";
 	print "</table>\n";
 }
@@ -71,7 +85,7 @@ sub printForecast {
 		" <span class='material-icons'>weekend</span>",
 		" <span class='material-icons'>dark_mode</span>"
 	);
-	for (my $i = 0; $i < 7; $i++) {
+	for (my $i = 0; $i < 8; $i++) {
 		my $f = $daily[$i];
 		print "<td>\n";
 		print "<b>" . &getDate($$f{"dt"}, $tzoffset) . "</b>\n";
@@ -157,19 +171,23 @@ sub printHead {
 	<head>
 		<title>Weather</title>
 		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-		<link href="/weather.css" rel="stylesheet" type="text/css">
+		<link href="https://weather.sanvash.com/weather.css" rel="stylesheet" type="text/css">
 	</head>
 	<body>
 EOF
 }
 
 sub printFoot {
-	print "</body></html>\n";
+	print <<EOF;
+	<br>Photo by <a href="https://unsplash.com/\@linawhite?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText" target="_blank">Lina White</a>
+	on <a href="https://unsplash.com/wallpapers/nature/sky?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText" target="_blank">Unsplash</a>.
+	</body></html>
+EOF
 }
 
 sub getIcon {
 	my ($icon, $alt) = @_;
-	return '<img src="http://openweathermap.org/img/wn/' . $icon . '@2x.png" title="' . $alt . '">';
+	return '<img src="https://openweathermap.org/img/wn/' . $icon . '@2x.png" title="' . $alt . '">';
 }
 
 sub getDateTime {
@@ -240,5 +258,5 @@ sub debug {
 __DATA__
 Sample calls:
 
-Current: http://api.openweathermap.org/data/2.5/weather?lat=43.7806&lon=-79.3503&appid=db1782e369a2197e7302114c6c4e70da&units=metric
+Current: https://api.openweathermap.org/data/2.5/weather?lat=43.7806&lon=-79.3503&appid=db1782e369a2197e7302114c6c4e70da&units=metric
 Full: https://api.openweathermap.org/data/2.5/onecall?lat=43.7806&lon=-79.3503&appid=db1782e369a2197e7302114c6c4e70da&units=metric&exclude=minutely

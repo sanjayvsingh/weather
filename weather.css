@@ -1,4 +1,11 @@
-body, p, td, th {
+body {
+	background-color: #87ceeb;
+	background-image: url("https://weather.sanvash.com/lina-white-eZUaKlYDD8k-unsplash.jpg");
+	background-repeat: no-repeat;
+	background-size: cover;   
+}
+
+p, td, th {
    font-family: Calibri, Arial, Helvetica, sans-serif;
 }
 
@@ -45,12 +52,12 @@ h3 {
 
 .feelslike {
 	font-size: 18pt;
-	color: #999999;
+	color: #666666;
 }
 
 .alert {
 	font-size: 20pt;
-	color: #ff0000;
+	color: #EC6E4C;
 }
 
 .debug {
