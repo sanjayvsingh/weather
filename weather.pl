@@ -8,9 +8,12 @@ use CGI::Carp qw(fatalsToBrowser);
 use CGI qw(:standard);
 use Data::Dumper;
 
+&printHead;
+
+# get weather data
 my ($current, $forecast, $tzoffset) = &getData();
 
-&printHead;
+# display weather data
 if ( defined $$forecast{"alerts"} ) {
 	&printAlerts( $$forecast{"alerts"} );
 }
@@ -20,6 +23,7 @@ if ( defined $$forecast{"alerts"} ) {
 my $owmLink = "https://openweathermap.org/city/" . $$current{"id"};
 print "<p><a href='$owmLink' target='_blank'>" . $$current{"name"} . ", " . $$current{"sys"}{"country"} . "</a> at " . &getDateTime($$forecast{"current"}{"dt"}, $tzoffset) . "\n";
 
+# add tracking image
 print "<img src='https://sanvash.com/cgi-bin/log.pl'>";
 &printFoot;
 
@@ -29,8 +33,14 @@ sub getData {
 
 	my ($lat, $lon) = (43.7806, -79.3503);  # default location - home
 	if ( defined param('lat') && defined param('lon') ) { 
-		($lat, $lon) = (param('lat'), param('lon'));
+		$lat = &untaint( param('lat') );
+		$lon = &untaint( param('lon') );
+	} elsif ( defined param('loc') ) {
+		# got a location, so let's geocode and use it
+		my $loc = &untaint( param('loc') );
+		($lat, $lon) = &geocode( $loc );
 	}
+	&debug("Lat: $lat; Lon: $lon");
 
 	# get current weather data
 	my $url = "https://api.openweathermap.org/data/2.5/weather?units=metric&lat=$lat&lon=$lon&appid=$apikey";
@@ -60,7 +70,7 @@ sub printCurrent {
 	if ( defined $$w{'name'} && $$w{'name'} ne "" ) { $city = $$w{'name'}; }	
 	
 	print "<h1>$city</h1>\n";
-	print "<table>\n";
+	print "<div class='tableXscroll'><table>\n";
 	print "<tr>\n";
 	print "<td>" . &getIcon( $$w{"weather"}[0]{"icon"}, $$w{"weather"}[0]{"description"} ) . "</td>\n";
 	print "<td class='current'>" . &round($$w{"main"}{"temp"}) . "&deg;C</td>\n";
@@ -68,14 +78,14 @@ sub printCurrent {
 	print "<td class='feelslike'>humidity<br>" . &round($$w{"main"}{"humidity"}) . "%</td>\n";
 	print "<td class='feelslike'>wind<br>" . &round($$w{"wind"}{"speed"}*3.6) . "km/h</td>\n";
 	print "</tr>\n";
-	print "</table>\n";
+	print "</table></div>\n";
 }
 
 sub printForecast {
 	my ($w) = @_;
 	my @daily = @$w;
 	print "<h1>Forecast</h1>\n";
-	print "<table>\n";
+	print "<div class='tableXscroll'><table>\n";
 	print "<tr>\n";
 
 	my ($morn, $day, $eve, $night) = (
@@ -111,14 +121,14 @@ sub printForecast {
 	}
 
 	print "</tr>\n";
-	print "</table>\n";
+	print "</table></div>\n";
 }
 
 sub printHourly {
 	my ($w) = @_;
 	my @hourly = @$w;
 	print "<h1>Hourly Forecast</h1>\n";
-	print "<table>\n";
+	print "<div class='tableXscroll'><table>\n";
 	print "<tr>\n";
 
 	my ($curDate) = ("");
@@ -150,7 +160,7 @@ sub printHourly {
 	}
 
 	print "</tr>\n";
-	print "</table>\n";
+	print "</table></div>\n";
 }
 
 sub printAlerts {
@@ -168,19 +178,23 @@ sub printHead {
    print <<EOF;
 	<html>
 	<head>
+		<meta http-equiv="content-type" content="text/html; charset=windows-1252">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Weather</title>
 		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 		<link href="https://weather.sanvash.com/weather.css" rel="stylesheet" type="text/css">
 	</head>
-	<body>
+	<body><div>
+	<div class="background"></div>	
+
 EOF
 }
 
 sub printFoot {
 	print <<EOF;
-	<br>Photo by <a href="https://unsplash.com/\@linawhite?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText" target="_blank">Lina White</a>
-	on <a href="https://unsplash.com/wallpapers/nature/sky?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText" target="_blank">Unsplash</a>.
-	</body></html>
+	<br>Photo by <a href="https://unsplash.com/\@duo1ze?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText" target="_blank">Duo1ze</a> 
+	on <a href="https://unsplash.com/wallpapers/nature/sky?utm_source=unsplash&utm_medium=referral&utm_content=creditCopyText" target="_blank">Unsplash</a>
+	</div></body></html>
 EOF
 }
 
@@ -234,6 +248,22 @@ sub getTime {
 	}
 	&debug("time: $datetime, offset: $tzoffset -> $str");
 	return $str;
+}
+
+sub geocode {
+	my ($loc) = @_;
+	my $geocodekey = &getKey("mapquest");
+	my $url = "http://open.mapquestapi.com/geocoding/v1/address?key=$geocodekey&maxResults=1&location=$loc";
+	my $resp = &getPage( $url );
+	my $current = decode_json( $resp );
+	if ( defined $$current{"info"}{"statuscode"} && $$current{"info"}{"statuscode"} == 0 ) {
+		# found a match, return best match
+		my $location = $$current{"results"}[0]{"locations"}[0];
+		return ( $$location{"latLng"}{"lat"}, $$location{"latLng"}{"lng"} );
+	} else {
+		# no match, return default
+		return ( 0, 0 );
+	}
 }
 
 sub round {
