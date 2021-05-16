@@ -67,8 +67,14 @@ h3 {
 input {
 	font-size: 22pt;
 	border: 0;
+	border-radius: 10px;
 	padding: 3px;
-	color: #333333;
+	color: #666666;
+}
+
+/* placeholder style for input text */
+::placeholder {
+	color: #EC6E4C;
 }
 
 .current {

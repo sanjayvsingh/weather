@@ -1,9 +1,10 @@
 <html>
 <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+	<meta http-equiv="content-type" content="text/html; charset=windows-1252">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Weather</title>
-	<link href='https://fonts.googleapis.com/css?family=Rubik Mono One' rel='stylesheet'>
-	<link rel="stylesheet" type="text/css" href="https://weather.sanvash.com/weather.css">
+	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+	<link href="https://weather.sanvash.com/weather.css" rel="stylesheet" type="text/css">
 	<script>
 		function getLocation() {
 			if (navigator.geolocation) {
@@ -15,10 +16,10 @@
 		}
 		
 		function showPosition(position) {
-			<!--
+			/*
 			var pg = document.getElementById("geo");
 			pg.innerHTML = "Latitude: " + position.coords.latitude + "<br>Longitude: " + position.coords.longitude;
-			-->
+			*/
 			
 			var url = "https://sanvash.com/cgi-bin/weather.pl?";
 			url = url + "lat=" + position.coords.latitude + "&lon=" + position.coords.longitude;
@@ -27,6 +28,19 @@
 	</script>
 </head>
 <body onload="getLocation()">
-<p id="geo"></p>
+	<div class="background"></div>
+	<div class='addressForm' id='addressForm'>
+		<form id="getNames" action="https://sanvash.com/cgi-bin/weather.pl">
+			<input name="loc" value="address" onfocus="this.value=''" onchange="submit()">
+		</form>
+	</div>
+	<p id="geo"></p>
 </body>
 </html>
+
+
+
+	<html>
+	<head>
+	</head>
+	<body><div>
