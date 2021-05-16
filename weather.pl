@@ -270,36 +270,6 @@ sub geocode {
 	}
 }
 
-sub getWalkscore {
-	my ($lat, $lon, $apikey) = @_;
-	my $url = "https://api.walkscore.com/score?format=json&lat=$lat&lon=$lon&transit=1&bike=1&wsapikey=$apikey";
-	my $resp = &getPage( $url );
-	my $current = decode_json($resp);
-	
-	if ( defined $$current{'transit'}{'summary'} && $$current{"status"} == 1 ) {
-		# clean up records
-		$$current{'transit'}{'summary'} =~ s|, 0 other||;
-		return $current;
-	} else {
-		# not successful
-		return undef;
-	}
-}
-
-sub getGoodscore {
-	my ($lat, $lon) = @_;
-	my $url = "https://canue-dev.herokuapp.com/api/score?lng=$lon&lat=$lat";
-	my $resp = &getPage( $url );
-	my $current = decode_json($resp);
-
-	if ( defined $$current{"scores"} ) {
-		return $$current{"scores"};
-	} else {
-		# not successful
-		return undef;
-	}
-}
-
 sub round {
 	my ($n, $p) = @_;
 	if ( defined $p && $p == 1 ) {
