@@ -185,8 +185,12 @@ sub printHead {
 		<link href="https://weather.sanvash.com/weather.css" rel="stylesheet" type="text/css">
 	</head>
 	<body><div>
-	<div class="background"></div>	
-
+	<div class="background"></div>
+	<div class='addressForm' id='addressForm'>
+		<form id="getNames" action="https://sanvash.com/cgi-bin/weather.pl">
+			<input name="loc" value="address" onfocus="this.value=''" onchange="submit()">
+		</form>
+	</div>
 EOF
 }
 
