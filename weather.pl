@@ -11,7 +11,8 @@ use Data::Dumper;
 &printHead;
 
 # get weather data
-my ($current, $forecast, $tzoffset) = &getData();
+my ($lat, $lon) = &getCoordinates();
+my ($current, $forecast, $walkscore, $goodscore, $tzoffset) = &getData($lat, $lon);
 
 # display weather data
 if ( defined $$forecast{"alerts"} ) {
@@ -20,18 +21,28 @@ if ( defined $$forecast{"alerts"} ) {
 &printCurrent( $current );
 &printForecast( $$forecast{"daily"} );
 &printHourly( $$forecast{"hourly"} );
+
+&printNeighbourhood( $walkscore, $goodscore );
+
+# display credits
 my $owmLink = "https://openweathermap.org/city/" . $$current{"id"};
-print "<p><a href='$owmLink' target='_blank'>" . $$current{"name"} . ", " . $$current{"sys"}{"country"} . "</a> at " . &getDateTime($$forecast{"current"}{"dt"}, $tzoffset) . "\n";
+print "<p><a href='$owmLink' target='_blank'>" . $$current{"name"} . ", " . $$current{"sys"}{"country"} . "</a> at " 
+	. &getDateTime($$forecast{"current"}{"dt"}, $tzoffset) 
+	. " from <a href='$owmLink' target='_blank'>OpenWeather</a>\n";
+print "<br>Other Sources:\n";
+if ( defined $walkscore ) {
+	my $link = $$walkscore{'more_info_link'};
+	print "<a href='$link' target='_blank'>Walk Score</a><sup>&reg;</sup>: <a href='$link' target='_blank'>$$walkscore{'walkscore'}</a>\n";
+}
+print "| <a href='https://canue-dev.herokuapp.com/map?lat=$lat&lng=$lon' target='_blank'>Goodscore</a>\n";
+print "| <a href='https://www.getambee.com/' target='_blank'>Ambee</a>\n";
 
 # add tracking image
 print "<img src='https://sanvash.com/cgi-bin/log.pl'>";
 &printFoot;
 
-
-sub getData {
-	my $apikey = &getKey("openweathermap");
-
-	my ($lat, $lon) = (43.7806, -79.3503);  # default location - home
+sub getCoordinates {
+	my ($lat, $lon) = (43.7806, -79.3503);  # default location
 	if ( defined param('lat') && defined param('lon') ) { 
 		$lat = &untaint( param('lat') );
 		$lon = &untaint( param('lon') );
@@ -41,6 +52,12 @@ sub getData {
 		($lat, $lon) = &geocode( $loc );
 	}
 	&debug("Lat: $lat; Lon: $lon");
+	return ($lat, $lon);
+}
+
+sub getData {
+	my ($lat, $lon) = @_;
+	my $apikey = &getKey("openweathermap");
 
 	# get current weather data
 	my $url = "https://api.openweathermap.org/data/2.5/weather?units=metric&lat=$lat&lon=$lon&appid=$apikey";
@@ -61,7 +78,10 @@ sub getData {
 
 	my $tzoffset = $$forecast{"timezone_offset"};
 
-	return ($current, $forecast, $tzoffset);
+	my $walkscore = &getWalkscore($lat, $lon);
+	my $goodscore = &getGoodscore($lat, $lon);
+
+	return ($current, $forecast, $walkscore, $goodscore, $tzoffset);
 }
 
 sub printCurrent {
@@ -72,11 +92,11 @@ sub printCurrent {
 	print "<h1>$city</h1>\n";
 	print "<div class='tableXscroll'><table>\n";
 	print "<tr>\n";
-	print "<td>" . &getIcon( $$w{"weather"}[0]{"icon"}, $$w{"weather"}[0]{"description"} ) . "</td>\n";
+	print "<td class='current'>" . &getIcon( $$w{"weather"}[0]{"icon"}, $$w{"weather"}[0]{"description"}, "lg" ) . "</td>\n";
 	print "<td class='current'>" . &round($$w{"main"}{"temp"}) . "&deg;C</td>\n";
-	print "<td class='feelslike'>feels like<br>" . &round($$w{"main"}{"feels_like"}) . "&deg;</td>\n";
-	print "<td class='feelslike'>humidity<br>" . &round($$w{"main"}{"humidity"}) . "%</td>\n";
-	print "<td class='feelslike'>wind<br>" . &round($$w{"wind"}{"speed"}*3.6) . "km/h</td>\n";
+	print "<td class='feelslike'>feels like: " . &round($$w{"main"}{"feels_like"}) . "&deg;\n";
+	print "<br>humidity: " . &round($$w{"main"}{"humidity"}) . "%\n";
+	print "<br>wind: " . &round($$w{"wind"}{"speed"}*3.6) . " km/h</td>\n";
 	print "</tr>\n";
 	print "</table></div>\n";
 }
@@ -84,82 +104,104 @@ sub printCurrent {
 sub printForecast {
 	my ($w) = @_;
 	my @daily = @$w;
-	print "<h1>Forecast</h1>\n";
-	print "<div class='tableXscroll'><table>\n";
-	print "<tr>\n";
 
-	my ($morn, $day, $eve, $night) = (
-		" <span class='material-icons'>coffee_maker</span>",
-		" <span class='material-icons'>light_mode</span>",
-		" <span class='material-icons'>weekend</span>",
-		" <span class='material-icons'>dark_mode</span>"
-	);
+	# build display data
+	my $arr 	= "<span class='material-icons'>arrow_right_alt</span>";
+	my $day 	= "<th></th>";
+	my $icon 	= "<td></td>";
+	my $periods = "<td class='colhead'><span class='material-icons-big'>light_mode arrow_right_alt dark_mode</span></td>";
+	my $highlow = "<td class='colhead'><span class='material-icons-big'>north</span> &middot; <span class='material-icons-big'>south</span></td>";
+	my $precip 	= "<td></td>";
+
 	for (my $i = 0; $i < 8; $i++) {
 		my $f = $daily[$i];
-		print "<td>\n";
-		print "<b>" . &getDate($$f{"dt"}, $tzoffset) . "</b>\n";
-		print "<br>" . &getIcon( $$f{"weather"}[0]{"icon"}, $$f{"weather"}[0]{"description"} ) . "\n";
+		$day .= "<th>" . &getDate($$f{"dt"}, $tzoffset) . "</th>";
+		$icon .= "<td>" . &getIcon( $$f{"weather"}[0]{"icon"}, $$f{"weather"}[0]{"description"}, "md" ) . "</td>";
 
-		print "<br><span title='morning'>" . &round($$f{"temp"}{"morn"}) . "&deg;</span>" . 
-			" &middot; <span title='day'>" . &round($$f{"temp"}{"day"}) . "&deg;</span>" . 
-			" &middot; <span title='evening'>" . &round($$f{"temp"}{"eve"}) . "&deg;</span>" . 
-			" &middot; <span title='night'>" . &round($$f{"temp"}{"night"}) . "&deg;</span>";
+		$periods .= "<td><span title='morning'>" . &round($$f{"temp"}{"morn"}) . "&deg;</span>" . 
+			"$arr<span title='day'>" . &round($$f{"temp"}{"day"}) . "&deg;</span>" . 
+			"$arr<span title='day'> <span title='evening'>" . &round($$f{"temp"}{"eve"}) . "&deg;</span>" . 
+			"$arr<span title='day'> <span title='night'>" . &round($$f{"temp"}{"night"}) . "&deg;</span></td>\n";
+		my $dayspan = &round($$f{"temp"}{"morn"}) . "&deg; &rarr; " . &round($$f{"temp"}{"day"}) . 
+			"&deg; &rarr; " . &round($$f{"temp"}{"eve"}) . "&deg; &rarr; " . &round($$f{"temp"}{"night"}) . "&deg;";
 
+		$highlow .= "<td><span title='$dayspan'>" . &round($$f{"temp"}{"max"}) . "&deg;" . 
+			" &middot; " . &round($$f{"temp"}{"min"}) . "&deg;</span></td>\n";
+
+
+		$precip .= "<td>";
 		if ( defined $$f{"rain"} ) {
-			print "<br><span class='material-icons'>water_drop</span>" . &round($$f{"rain"}, 1) . "mm\n";
+			$precip .= "<br><span class='material-icons'>water_drop</span>" . &round($$f{"rain"}, 1) . "mm\n";
 		}
 		if ( defined $$f{"snow"} ) {
-			print "<br><span class='material-icons'>ac_unit</span>" . &round($$f{"snow"}, 1) . "mm\n";
+			$precip .= "<br><span class='material-icons'>ac_unit</span>" . &round($$f{"snow"}, 1) . "mm\n";
 		}
 		if ( defined $$f{"pop"} && $$f{"pop"} > 0 ) {
-			print "<br>pop: " . &round($$f{"pop"} * 100) . "%\n";
+			$precip .= "<br>pop: " . &round($$f{"pop"} * 100) . "%\n";
 		}
-
-		print "</td>\n";
-		
-		($morn, $day, $eve, $night) = ("", "", "", "");
+		$precip .= "</td>";
+		$precip =~ s|<td>(<br>)+|<td>|g;
 	}
 
-	print "</tr>\n";
+	# print table
+	print "<h1>Forecast</h1>\n";
+	print "<div class='tableXscroll'><table>\n";
+	print "<tr>$day</tr>";
+	print "<tr>$icon</tr>";
+	print "<tr>$highlow</tr>";
+	#print "<tr>$periods</tr>";
+	print "<tr>$precip</tr>";
 	print "</table></div>\n";
 }
 
 sub printHourly {
 	my ($w) = @_;
 	my @hourly = @$w;
-	print "<h1>Hourly Forecast</h1>\n";
-	print "<div class='tableXscroll'><table>\n";
-	print "<tr>\n";
+	
+	# build display data
+	my $arr 	= "<span class='material-icons'>arrow_right_alt</span>";
+	my $time 	= "";
+	my $icon 	= "";
+	my $temp 	= "";
+	my $precip 	= "";
 
 	my ($curDate) = ("");
 	for (my $i = 0; $i < 12; $i++) {
 		my $f = $hourly[$i];
-		print "<td>\n";
 		
 		my $timeStr = "";
 		my $date = &getDate($$f{"dt"}, $tzoffset);
 		if ( $curDate ne $date ) {
-			$timeStr = $date . " " . &getTime($$f{"dt"}, $tzoffset);
+			$timeStr = $date . "<br>" . &getTime($$f{"dt"}, $tzoffset);
 			$curDate = $date;
 		} else {
 			$timeStr = &getTime($$f{"dt"}, $tzoffset);
 		}
-		print "<b>" . $timeStr . "</b>\n";
-		print "<br>" . &getIcon( $$f{"weather"}[0]{"icon"}, $$f{"weather"}[0]{"description"} ) . "\n";
-		print "<br>" . &round($$f{"temp"}) . "&deg;\n";
+		$time .= "<th>" . $timeStr . "</th>";
+		$icon .= "<td>" . &getIcon( $$f{"weather"}[0]{"icon"}, $$f{"weather"}[0]{"description"}, "sm" ) . "</td>";
+		$temp .= "<td>" . &round($$f{"temp"}) . "&deg;</td>";
+		
+		$precip .= "<td>";
 		if ( defined $$f{"rain"} ) {
-			print "<br><span class='material-icons'>water_drop</span>" . &round($$f{"rain"}{"1h"}*10)/10 . "mm\n";
+			$precip .= "<br><span class='material-icons'>water_drop</span>" . &round($$f{"rain"}{"1h"}, 1) . "mm\n";
 		}
 		if ( defined $$f{"snow"} ) {
-			print "<br><span class='material-icons'>ac_unit</span>" . &round($$f{"snow"}{"1h"}*10)/10 . "mm\n";
+			$precip .= "<br><span class='material-icons'>ac_unit</span>" . &round($$f{"snow"}{"1h"}, 1) . "mm\n";
 		}
 		if ( defined $$f{"pop"} && $$f{"pop"} > 0 ) {
-			print "<br>pop: " . &round($$f{"pop"} * 100) . "%\n";
+			$precip .= "<br>pop: " . &round($$f{"pop"} * 100) . "%\n";
 		}
-		print "</td>\n";
+		$precip .= "</td>";
+		$precip =~ s|<td>(<br>)+|<td>|g;
 	}
 
-	print "</tr>\n";
+	# print table
+	print "<h1>Hourly Forecast</h1>\n";
+	print "<div class='tableXscroll'><table>\n";
+	print "<tr>$time</tr>";
+	print "<tr>$icon</tr>";
+	print "<tr>$temp</tr>";
+	print "<tr>$precip</tr>";
 	print "</table></div>\n";
 }
 
@@ -168,17 +210,22 @@ sub printAlerts {
 	
 	unless ( defined $w ) { return; }  # exit when there are no alerts
 	foreach (@$w) {
-		print "<p class='alert'>" . ucfirst($$_{'event'}) . " warning from " . &getDateTime($$_{"start"}, $tzoffset) . 
-			" to "  . &getDateTime($$_{"end"}, $tzoffset) . " from $$_{'sender_name'}.</p>\n";
+		# if there's no description, then set it
+		unless ( defined $$_{"description"} ) { $$_{"description"} = ""; }
+		
+		# print the alert with the details as a tooltip
+		print "<p class='alert' title='" . $$_{"description"} . "'>" . ucfirst($$_{'event'}) . " warning from " . &getDateTime($$_{"start"}, $tzoffset) . 
+			" to "  . &getDateTime($$_{"end"}, $tzoffset) . " from $$_{'sender_name'}.\n";
 	}
 }
 
 sub printHead {
    print header;
    print <<EOF;
-	<html>
+	<!DOCTYPE html>
+	<html lang="en">
 	<head>
-		<meta http-equiv="content-type" content="text/html; charset=windows-1252">
+		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Weather</title>
 		<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -186,9 +233,9 @@ sub printHead {
 	</head>
 	<body><div>
 	<div class="background"></div>
-	<div class='addressForm' id='addressForm'>
+	<div class="topRight" id="addressForm">
 		<form id="getNames" action="https://sanvash.com/cgi-bin/weather.pl">
-			<input name="loc" value="address" onfocus="this.value=''" onchange="submit()">
+			<input name="loc" value="" placeholder="address" onchange="submit()">
 		</form>
 	</div>
 EOF
@@ -203,8 +250,9 @@ EOF
 }
 
 sub getIcon {
-	my ($icon, $alt) = @_;
-	return '<img src="https://openweathermap.org/img/wn/' . $icon . '@2x.png" title="' . $alt . '">';
+	my ($icon, $alt, $size) = @_;
+	unless ( defined $size ) { $size = "lg"; }
+	return '<img class="' . $size . '" src="https://openweathermap.org/img/wn/' . $icon . '@2x.png" title="' . $alt . '">';
 }
 
 sub getDateTime {
@@ -270,6 +318,85 @@ sub geocode {
 	}
 }
 
+sub getWalkscore {
+	my ($lat, $lon) = @_;
+	my $apikey = &getKey("walkscore");
+	my $url = "https://api.walkscore.com/score?format=json&lat=$lat&lon=$lon&transit=1&bike=1&wsapikey=$apikey";
+	my $json = &getPage( $url );
+	my $res = decode_json($json);
+	
+	if ( defined $$res{'transit'}{'summary'} && $$res{"status"} == 1 ) {
+		# clean up records
+		$$res{'transit'}{'summary'} =~ s|, 0 other||;
+		return $res;
+	} else {
+		# not successful
+		return undef;
+	}
+}
+
+sub getGoodscore {
+	my ($lat, $lon) = @_;
+	my $url = "https://canue-dev.herokuapp.com/api/score?lng=$lon&lat=$lat";
+	my $json = &getPage( $url );
+	my $res = decode_json($json);
+
+	if ( defined $$res{"scores"} ) {
+		return $$res{"scores"};
+	} else {
+		# not successful
+		return undef;
+	}
+}
+
+sub printNeighbourhood {
+	my ($ws, $gs) = @_;
+	unless ( defined $ws || defined $gs ) { return; }
+
+	# we know we have a score at this point
+	my $scores = "";
+	my $descriptions = "";
+
+	# if we have a Walk Score
+	if ( defined $ws ) {
+		$scores .= "<td class='score'><span class='material-icons-big'>directions_walk</span> $$ws{'walkscore'}</td>\n";
+		$descriptions .= lc "<td class='description'>$$ws{'description'}</td>\n";
+		$scores .= "<td class='score'><span class='material-icons-big'>directions_transit</span> $$ws{'transit'}{'score'}</td>\n";
+		$descriptions .= lc "<td class='description'><span title='$$ws{'transit'}{'summary'}'>$$ws{'transit'}{'description'}</span></td>\n";
+		$scores .= "<td class='score'><span class='material-icons-big'>directions_bike</span> $$ws{'bike'}{'score'}</td>\n";
+		$descriptions .= lc "<td class='description'>$$ws{'bike'}{'description'}</td>\n";
+	}
+
+	# if we have a Good Score
+	if ( defined $gs ) {
+		$scores .= "<td class='score'><span class='material-icons-big'>storefront</span> $$gs{'amenities'}</td>\n";
+		$descriptions .= "<td class='description'>amenities</td>\n";
+		$scores .= "<td class='score'><span class='material-icons-big'>nature</span> $$gs{'greenness'}</td>\n";
+		$descriptions .= "<td class='description'>greenness</td>\n";
+		$scores .= "<td class='score'><span class='material-icons-big'>nature_people</span> $$gs{'parks'}</td>\n";
+		$descriptions .= "<td class='description'>parks &amp; rec</td>\n";
+		$scores .= "<td class='score'><span class='material-icons-big'>commute</span> $$gs{'transportation'}</td>\n";
+		$descriptions .= "<td class='description'>transit options</td>\n";
+		$scores .= "<td class='score'><span class='material-icons-big'>air</span> $$gs{'air_quality'}</td>\n";
+		$descriptions .= "<td class='description'>air quality</td>\n";
+	}
+
+	print "<h1>Neighbourhood Scores</h1>\n";
+	print "<div class='tableXscroll'><table>\n";
+	print "<tr>$scores</tr>\n";
+	print "<tr>$descriptions</tr>\n";
+	print "</table></div>\n";
+	
+}
+
+sub printWalkscore {
+	my ($a) = @_;
+}
+
+sub printGoodscore {
+	my ($a) = @_;
+}
+
 sub round {
 	my ($n, $p) = @_;
 	if ( defined $p && $p == 1 ) {
@@ -287,9 +414,3 @@ sub debug {
 		print "<span class='debug'>[$c]</span>";
 	}
 }
-
-__DATA__
-Sample calls:
-
-Current: https://api.openweathermap.org/data/2.5/weather?lat=43.7806&lon=-79.3503&appid=db1782e369a2197e7302114c6c4e70da&units=metric
-Full: https://api.openweathermap.org/data/2.5/onecall?lat=43.7806&lon=-79.3503&appid=db1782e369a2197e7302114c6c4e70da&units=metric&exclude=minutely

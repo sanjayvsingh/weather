@@ -3,18 +3,21 @@ body, p, td, th {
 }
 
 table {
+   border: none;
    border-collapse: collapse;
 }
 
-td {
-	text-align: center;
-	vertical-align: top;
-	padding-left: 10px;
-	padding-right: 10px;
+th {
+	white-space: nowrap;
+	vertical-align: bottom;
 }
 
-table.borderless {
-   border: none;
+td {
+	padding-left: 8px;
+	padding-right: 8px;
+	text-align: center;
+	white-space: nowrap;
+	vertical-align: top;
 }
 
 h1 {
@@ -48,20 +51,34 @@ h3 {
 	opacity: 0.6;
 }
 
-
 .tableXscroll {
    overflow-x: auto;
 }
 
+.colhead {
+	text-align: right;
+	font-size: 9pt;
+}
+
+td.underline {
+	border-bottom: 1px solid #999999;
+}
+
 .material-icons {
+	font-family: 'Material Icons';
 	font-size: 8pt;
 	color: #666666;
 }
 
-.addressForm {
+.material-icons-big {
+	font-family: 'Material Icons';
+	color: #666666;
+}
+
+.topRight {
 	position: absolute;
-	top: 10;
-	right: 10;
+	top: 10px;
+	right: 10px;
 }
 
 input {
@@ -78,22 +95,61 @@ input {
 }
 
 .current {
+	padding-left: 0px;
+	padding-right: 0px;
 	font-size: 30pt;
 	color: #333333;
+	vertical-align: top;
 }
 
 .feelslike {
-	font-size: 18pt;
+	padding-left: 10px;
+	padding-right: 0px;
+	font-size: 14pt;
 	color: #666666;
+	vertical-align: top;
+	text-align: left;
+}
+
+.score {
+	font-size: 20pt;
+	color: #333333;
+	vertical-align: bottom;
+}
+
+.description {
+	color: #333333;
+}
+
+.note {
+	color: #333333;
+	text-align: left;
 }
 
 .alert {
 	font-size: 20pt;
 	color: #EC6E4C;
 }
+.alertDetails {
+	font-size: 12pt;
+	color: #333333;
+}
+
+img.lg {
+	width: 100px;
+	height: 100px;
+}
+img.md {
+	width: 75px;
+	height: 75px;
+}
+img.sm {
+	width: 60px;
+	height: 60px;
+}
 
 .debug {
-	color:#ff00ff;
+	color: #ff00ff;
 }
 
 A:link, A:visited {

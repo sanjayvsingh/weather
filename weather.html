@@ -1,6 +1,7 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-	<meta http-equiv="content-type" content="text/html; charset=windows-1252">
+	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>Weather</title>
 	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -16,11 +17,6 @@
 		}
 		
 		function showPosition(position) {
-			/*
-			var pg = document.getElementById("geo");
-			pg.innerHTML = "Latitude: " + position.coords.latitude + "<br>Longitude: " + position.coords.longitude;
-			*/
-			
 			var url = "https://sanvash.com/cgi-bin/weather.pl?";
 			url = url + "lat=" + position.coords.latitude + "&lon=" + position.coords.longitude;
 			location.replace(url);
@@ -34,6 +30,8 @@
 			<input name="loc" value="address" onfocus="this.value=''" onchange="submit()">
 		</form>
 	</div>
-	<p id="geo"></p>
 </body>
 </html>
+
+
+
