@@ -31,11 +31,10 @@ print "<p><a href='$owmLink' target='_blank'>" . $$current{"name"} . ", " . $$cu
 	. " from <a href='$owmLink' target='_blank'>OpenWeather</a>\n";
 print "<br>Other Sources:\n";
 if ( defined $walkscore ) {
-	my $link = $$walkscore{'more_info_link'};
-	print "<a href='$link' target='_blank'>Walk Score</a><sup>&reg;</sup>: <a href='$link' target='_blank'>$$walkscore{'walkscore'}</a>\n";
+	print "<a href='$$walkscore{'more_info_link'}' target='_blank'>Walk Score</a><sup>&reg;</sup>: <a href='$$walkscore{'ws_link'}' target='_blank'>$$walkscore{'walkscore'}</a> |\n";
 }
-print "| <a href='https://canue-dev.herokuapp.com/map?lat=$lat&lng=$lon' target='_blank'>Goodscore</a>\n";
-print "| <a href='https://www.getambee.com/' target='_blank'>Ambee</a>\n";
+print "<a href='https://canue-dev.herokuapp.com/map?lat=$lat&lng=$lon' target='_blank'>Goodscore</a> |\n";
+print "<a href='https://www.getambee.com/' target='_blank'>Ambee</a>\n";
 
 # add tracking image
 print "<img src='https://sanvash.com/cgi-bin/log.pl'>";
@@ -107,11 +106,13 @@ sub printForecast {
 
 	# build display data
 	my $arr 	= "<span class='material-icons'>arrow_right_alt</span>";
-	my $day 	= "<th></th>";
-	my $icon 	= "<td></td>";
-	my $periods = "<td class='colhead'><span class='material-icons-big'>light_mode arrow_right_alt dark_mode</span></td>";
-	my $highlow = "<td class='colhead'><span class='material-icons-big'>north</span> &middot; <span class='material-icons-big'>south</span></td>";
-	my $precip 	= "<td></td>";
+	my $up		= "<span class='material-icons'>north</span>";
+	my $dn		= "<span class='material-icons'>south</span>";
+	my $day 	= "";
+	my $icon 	= "";
+	my $periods = "";
+	my $highlow = "";
+	my $precip 	= "";
 
 	for (my $i = 0; $i < 8; $i++) {
 		my $f = $daily[$i];
@@ -125,9 +126,7 @@ sub printForecast {
 		my $dayspan = &round($$f{"temp"}{"morn"}) . "&deg; &rarr; " . &round($$f{"temp"}{"day"}) . 
 			"&deg; &rarr; " . &round($$f{"temp"}{"eve"}) . "&deg; &rarr; " . &round($$f{"temp"}{"night"}) . "&deg;";
 
-		$highlow .= "<td><span title='$dayspan'>" . &round($$f{"temp"}{"max"}) . "&deg;" . 
-			" &middot; " . &round($$f{"temp"}{"min"}) . "&deg;</span></td>\n";
-
+		$highlow .= "<td><span title='$dayspan'>" . $up . &round($$f{"temp"}{"max"}) . "&deg; " . $dn . &round($$f{"temp"}{"min"}) . "&deg;</span></td>\n";
 
 		$precip .= "<td>";
 		if ( defined $$f{"rain"} ) {
@@ -325,9 +324,11 @@ sub getWalkscore {
 	my $json = &getPage( $url );
 	my $res = decode_json($json);
 	
-	if ( defined $$res{'transit'}{'summary'} && $$res{"status"} == 1 ) {
+	if ( $$res{"status"} == 1 ) {
 		# clean up records
-		$$res{'transit'}{'summary'} =~ s|, 0 other||;
+		if ( defined $$res{'transit'}{'summary'} ) {
+			$$res{'transit'}{'summary'} =~ s|, 0 other||;
+		}
 		return $res;
 	} else {
 		# not successful
@@ -359,12 +360,18 @@ sub printNeighbourhood {
 
 	# if we have a Walk Score
 	if ( defined $ws ) {
-		$scores .= "<td class='score'><span class='material-icons-big'>directions_walk</span> $$ws{'walkscore'}</td>\n";
-		$descriptions .= lc "<td class='description'>$$ws{'description'}</td>\n";
-		$scores .= "<td class='score'><span class='material-icons-big'>directions_transit</span> $$ws{'transit'}{'score'}</td>\n";
-		$descriptions .= lc "<td class='description'><span title='$$ws{'transit'}{'summary'}'>$$ws{'transit'}{'description'}</span></td>\n";
-		$scores .= "<td class='score'><span class='material-icons-big'>directions_bike</span> $$ws{'bike'}{'score'}</td>\n";
-		$descriptions .= lc "<td class='description'>$$ws{'bike'}{'description'}</td>\n";
+		if ( defined $$ws{'walkscore'} ) {
+			$scores .= "<td class='score'><span class='material-icons-big'>directions_walk</span> $$ws{'walkscore'}</td>\n";
+			$descriptions .= lc "<td class='description'>$$ws{'description'}</td>\n";
+		}
+		if ( defined $$ws{'transit'}{'score'} ) {
+			$scores .= "<td class='score'><span class='material-icons-big'>directions_transit</span> $$ws{'transit'}{'score'}</td>\n";
+			$descriptions .= lc "<td class='description'><span title='$$ws{'transit'}{'summary'}'>$$ws{'transit'}{'description'}</span></td>\n";
+		}
+		if ( defined $$ws{'bike'}{'score'} ) {
+			$scores .= "<td class='score'><span class='material-icons-big'>directions_bike</span> $$ws{'bike'}{'score'}</td>\n";
+			$descriptions .= lc "<td class='description'>$$ws{'bike'}{'description'}</td>\n";
+		}
 	}
 
 	# if we have a Good Score
@@ -387,14 +394,6 @@ sub printNeighbourhood {
 	print "<tr>$descriptions</tr>\n";
 	print "</table></div>\n";
 	
-}
-
-sub printWalkscore {
-	my ($a) = @_;
-}
-
-sub printGoodscore {
-	my ($a) = @_;
 }
 
 sub round {
